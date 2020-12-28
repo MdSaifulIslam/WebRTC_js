@@ -1,3 +1,5 @@
+var sendChannel;
+var receiveChannel;
 var Demo = (function () {
     var _audioTrack;
     var _videoTrack = null;
@@ -13,11 +15,17 @@ var Demo = (function () {
 
     var _rtpSender;
 
+
+
+    /**creating socket object */
+
     var socket = io();
 
     async function _init() {
 
         _localVideo = document.getElementById('videoCtr');
+
+        /**Bind all event conroller */
 
         eventBinding();
     }
@@ -25,7 +33,8 @@ var Demo = (function () {
     function eventBinding() {
 
         $("#btnMuteUnmute").on('click', function () {
-            if (!_audioTrack) return;
+            if (!_audioTrack) return;/**if still audio is null, simply return. 
+                                    Otherwise control the audio track using event */
 
             if (_audioTrack.enabled == false) {
                 _audioTrack.enabled = true;
@@ -38,9 +47,10 @@ var Demo = (function () {
             console.log(_audioTrack);
         });
         $("#btnStartReco").on('click', function () {
-            setupMediaRecorder();
-            _mediaRecorder.start(1000);
+            setupMediaRecorder();/** call the recording function */
+            _mediaRecorder.start(1000); /**get media stream in every one(1) second */
         });
+        /**control the record events */
         $("#btnPauseReco").on('click', function () {
             _mediaRecorder.pause();
         });
@@ -51,21 +61,25 @@ var Demo = (function () {
             _mediaRecorder.stop();
         });
 
+        /**control the video streams */
+
         $("#btnStartStopCam").on('click', async function () {
 
             if (_videoTrack) {
                 _videoTrack.stop();
                 _videoTrack = null;
-                _localVideo.srcObject = null;
+                _localVideo.srcObject = null; /** reset the video object  */
                 $("#btnStartStopCam").text("Start Camera");
 
                 if (_rtpSender && connection) {
-                    connection.removeTrack(_rtpSender);
+                    connection.removeTrack(_rtpSender); /**stop sending the streams */
                     _rtpSender = null;
                 }
 
                 return;
             }
+
+            /**if video is not avaiable, get the media access. only audio !!!!  */
             try {
                 var vstream = await navigator.mediaDevices.getUserMedia({
                     video: {
@@ -74,20 +88,11 @@ var Demo = (function () {
                     },
                     audio: false
                 });
-                if (vstream && vstream.getVideoTracks().length > 0) {
-                    _videoTrack = vstream.getVideoTracks()[0];
-                    setLocalVideo(true);
-                    //_localVideo.srcObject = new MediaStream([_videoTrack]);
+                if (vstream && vstream.getVideoTracks().length > 0) { /**check video stream , and vidoe media available */
+                    _videoTrack = vstream.getVideoTracks()[0]; /** get the media stream */
+                    setLocalVideo(true);/** set stream to local video */
                     $("#btnStartStopCam").text("Stop Camera");
                 }
-                //debugger;
-                //if (_rtpSender && _rtpSender.track && _videoTrack && connection) {
-                //    _rtpSender.replaceTrack(_videoTrack);
-                //}
-                //else {
-                //    if (_videoTrack && connection)
-                //        _rtpSender = connection.addTrack(_videoTrack);
-                //}
 
 
             } catch (e) {
@@ -99,45 +104,31 @@ var Demo = (function () {
         $("#btnStartStopScreenshare").on('click', async function () {
 
             if (_screenTrack) {
-                _screenTrack.stop();
-                _screenTrack = null;
+                _screenTrack.stop(); /** stop current screen sharing */
+                _screenTrack = null; /** clesr screenTrack and reset streams */
                 _localVideo.srcObject = null;
                 $(this).text("Screen Share");
 
                 if (_rtpSender && connection) {
-                    connection.removeTrack(_rtpSender);
+                    connection.removeTrack(_rtpSender); /** stop sharing screen */
                     _rtpSender = null;
                 }
                 return;
             }
+
+            /** if screen sharing is not available, get the access */
             try {
                 var sc_stream = await navigator.mediaDevices.getDisplayMedia({
                     audio: false,
                     video: {
-                        frameRate: 1,
+                        frameRate: 1, /** take frame after one (1) second */
                     },
                 });
                 if (sc_stream && sc_stream.getVideoTracks().length > 0) {
-                    _screenTrack = sc_stream.getVideoTracks()[0];
+                    _screenTrack = sc_stream.getVideoTracks()[0]; /**get the screen track */
                     setLocalVideo(false);
-                    //_localVideo.srcObject = new MediaStream([_screenTrack]);
                     $(this).text("Stop Share");
                 }
-
-                //if (_videoTrack) {
-                //    connection.removeTrack(_videoTrack);
-                //}
-
-                //if (_screenTrack && connection)
-                //    connection.addTrack(_screenTrack);
-
-                //if (_rtpSender && _rtpSender.track && _screenTrack && connection) {
-                //    _rtpSender.replaceTrack(_screenTrack);
-                //}
-                //else {
-                //    if (_screenTrack && connection)
-                //        _rtpSender = connection.addTrack(_screenTrack);
-                //}
 
             } catch (e) {
                 console.log(e);
@@ -151,19 +142,19 @@ var Demo = (function () {
             //await _createOffer();
         });
     }
-
+    /** switch the vedio strem to screen sharing and assign it to local  */
     function setLocalVideo(isVideo) {
         var currtrack;
 
         if (isVideo) {
-            if (_screenTrack) 
+            if (_screenTrack)
                 $("#btnStartStopScreenshare").trigger('click');
-            
+
             if (_videoTrack) {
                 _localVideo.srcObject = new MediaStream([_videoTrack]);
                 currtrack = _videoTrack;
             }
-            
+
         }
         else {
             if (_videoTrack)
@@ -183,7 +174,7 @@ var Demo = (function () {
                 _rtpSender = connection.addTrack(currtrack);
         }
     }
-
+    /** functiion to handle record system */
     function setupMediaRecorder() {
 
         var _width = 0;
@@ -201,7 +192,6 @@ var Demo = (function () {
         var merger = new VideoStreamMerger({
             width: _width,   // Width of the output video
             height: _height,  // Height of the output video
-            //fps: 1,       // Video capture frames per second
             audioContext: null,
         })
 
@@ -210,15 +200,12 @@ var Demo = (function () {
             merger.addStream(new MediaStream([_screenTrack]), {
                 x: 0, // position of the topleft corner
                 y: 0,
-                //width: _screenTrack.getSettings().width,
-                //height: _screenTrack.getSettings().height,
-                mute: true // we don't want sound from the screen (if there is any)
+                mute: true /** ignore audio in screen share option */
             });
 
             if (_videoTrack && _videoTrack.readyState === "live") {
-                // Add the webcam stream. Position it on the bottom left and resize it to 100x100.
                 merger.addStream(new MediaStream([_videoTrack]), {
-                    x: 0,
+                    x: 0, /** add video in left bottom */
                     y: merger.height - 100,
                     width: 100,
                     height: 100,
@@ -228,7 +215,7 @@ var Demo = (function () {
         }
         else {
             if (_videoTrack && _videoTrack.readyState === "live") {
-                // Add the webcam stream.
+
                 merger.addStream(new MediaStream([_videoTrack]), {
                     x: 0,
                     y: 0,
@@ -241,16 +228,15 @@ var Demo = (function () {
 
 
         if (_audioTrack && _audioTrack.readyState === "live") {
-            // Add the webcam stream. Position it on the bottom left and resize it to 100x100.
+
             merger.addStream(new MediaStream([_audioTrack]), {
                 mute: false
             });
         }
 
-        // Start the merging. Calling this makes the result available to us
+        /**Start the merging */
         merger.start()
 
-        // We now have a merged MediaStream!
         var stream = merger.result;
         var videoRecPlayer = document.getElementById('videoCtrRec');
         videoRecPlayer.srcObject = stream;
@@ -297,19 +283,17 @@ var Demo = (function () {
             videoRecPlayer.play();
             $(videoRecPlayer).show();
 
-            $("#downloadRecording").attr({ href: url, download: 'video.webm' }).show();
+            $("#downloadRecording").attr({ href: url, download: 'Ultra-X.webm' }).show();
 
             $("#btnStartReco").show();
             $("#btnPauseReco").hide();
             $("#btnStopReco").hide();
-            //var download = document.getElementById('downloadRecording');
-            //download.href = url;
-            //download.download = 'test.weba';
-            //download.style.display = 'block';
 
 
         };
     }
+
+    /** start the connection with only audio  */
 
     async function startwithAudio() {
 
@@ -325,7 +309,7 @@ var Demo = (function () {
                 console.log(e);
             }
 
-            _audioTrack.enabled = false;
+            _audioTrack.enabled = false; /** disable audio initially */
 
         } catch (e) {
             console.log(e);
@@ -357,8 +341,8 @@ var Demo = (function () {
                     }
                 }
                 else {
-                    
-                    socket.emit('new_message1',JSON.stringify({ 'rejected': 'true' }));
+
+                    socket.emit('new_message1', JSON.stringify({ 'rejected': 'true' }));
                 }
             }
             if (_audioTrack) {
@@ -367,10 +351,20 @@ var Demo = (function () {
                     await _createConnection();
                 }
 
+                connection.ondatachannel = e => {
+
+                    receiveChannel = e.channel;
+                    receiveChannel.onmessage = e => console.log("messsage received!!!" + e.data)
+                    receiveChannel.onopen = e => console.log(" open from answer side......!!!!");
+                    receiveChannel.onclose = e => console.log("closed!!!!!!");
+                    connection.channel = receiveChannel;
+
+                }
+
                 await connection.setRemoteDescription(new RTCSessionDescription(message.offer));
                 var answer = await connection.createAnswer();
                 await connection.setLocalDescription(answer);
-                socket.emit('new_message1',JSON.stringify({ 'answer': answer }));
+                socket.emit('new_message1', JSON.stringify({ 'answer': answer }));
             }
         }
         else if (message.iceCandidate) {
@@ -394,34 +388,37 @@ var Demo = (function () {
         connection.onicecandidate = function (event) {
             console.log('onicecandidate', event.candidate);
             if (event.candidate) {
-                socket.emit('new_message1',JSON.stringify({ 'iceCandidate': event.candidate }));
+                socket.emit('new_message1', JSON.stringify({ 'iceCandidate': event.candidate }));
             }
         }
         connection.onicecandidateerror = function (event) {
             console.log('onicecandidateerror', event);
 
         }
+        /**gather ICE */
         connection.onicegatheringstatechange = function (event) {
             console.log('onicegatheringstatechange', event);
         };
+        /** offer ICE and negotiate offre for the connection */
         connection.onnegotiationneeded = async function (event) {
             await _createOffer();
         }
         connection.onconnectionstatechange = function (event) {
             console.log('onconnectionstatechange', connection.connectionState)
-            //if (connection.connectionState === "connected") {
-            //    console.log('connected')
-            //}
+            if (connection.connectionState === "connected") {
+                console.log('connected')
+            }
         }
-        // New remote media stream was added
+
+        /** add remote media streams to the local   */
         connection.ontrack = function (event) {
 
-            
+
             if (!_remoteStream)
                 _remoteStream = new MediaStream();
 
             if (event.streams.length > 0) {
-                
+
                 //_remoteStream = event.streams[0];
             }
 
@@ -442,7 +439,7 @@ var Demo = (function () {
             //newVideoElement.play();
         };
 
-        
+
         if (_videoTrack) {
             _rtpSender = connection.addTrack(_videoTrack);
         }
@@ -458,12 +455,18 @@ var Demo = (function () {
     }
 
     async function _createOffer() {
+
+        sendChannel = connection.createDataChannel("sendChannel");
+        sendChannel.onmessage = e => console.log("messsage received!!!" + e.data)
+        sendChannel.onopen = e => console.log("open form offer side......!!!!");
+        sendChannel.onclose = e => console.log("closed!!!!!!");
+
         var offer = await connection.createOffer();
         await connection.setLocalDescription(offer);
         console.log('offer', offer);
         console.log('localDescription', connection.localDescription);
         //Send offer to Server
-        socket.emit('new_message1',JSON.stringify({ 'offer': connection.localDescription }));
+        socket.emit('new_message1', JSON.stringify({ 'offer': connection.localDescription }));
     }
 
     return {
