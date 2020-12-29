@@ -1,5 +1,8 @@
-var sendChannel;
-var receiveChannel;
+var sendChannel = null;
+var receiveChannel = null;
+
+var sendType = '';
+
 var Demo = (function () {
     var _audioTrack;
     var _videoTrack = null;
@@ -142,6 +145,7 @@ var Demo = (function () {
             //await _createOffer();
         });
     }
+
     /** switch the vedio strem to screen sharing and assign it to local  */
     function setLocalVideo(isVideo) {
         var currtrack;
@@ -354,8 +358,15 @@ var Demo = (function () {
                 connection.ondatachannel = e => {
 
                     receiveChannel = e.channel;
-                    receiveChannel.onmessage = e => console.log("messsage received!!!" + e.data)
-                    receiveChannel.onopen = e => console.log(" open from answer side......!!!!");
+                    receiveChannel.onmessage = e => {
+                        $('#chat-box').append(`<p>${e.data}</p>`);
+                        console.log("messsage received!!!" + e.data)
+                    }
+                    receiveChannel.onopen = e => {
+                        sendType = 'recever';
+                        openChat('recever');
+                        console.log(" open from answer side......!!!!");
+                    }
                     receiveChannel.onclose = e => console.log("closed!!!!!!");
                     connection.channel = receiveChannel;
 
@@ -383,8 +394,15 @@ var Demo = (function () {
     async function _createConnection() {
 
         console.log('_createConnection');
+        var configuration = {
+            'iceServers': [{
+                'urls': 'stun:stun.stunprotocol.org:3478'
+            }
+            ]
+        };
 
         connection = new RTCPeerConnection(null);
+
         connection.onicecandidate = function (event) {
             console.log('onicecandidate', event.candidate);
             if (event.candidate) {
@@ -406,13 +424,12 @@ var Demo = (function () {
         connection.onconnectionstatechange = function (event) {
             console.log('onconnectionstatechange', connection.connectionState)
             if (connection.connectionState === "connected") {
-                console.log('connected')
+                console.log('connected finally........')
             }
         }
 
         /** add remote media streams to the local   */
         connection.ontrack = function (event) {
-
 
             if (!_remoteStream)
                 _remoteStream = new MediaStream();
@@ -457,8 +474,15 @@ var Demo = (function () {
     async function _createOffer() {
 
         sendChannel = connection.createDataChannel("sendChannel");
-        sendChannel.onmessage = e => console.log("messsage received!!!" + e.data)
-        sendChannel.onopen = e => console.log("open form offer side......!!!!");
+        sendChannel.onmessage = e => {
+            $('#chat-box').append(`<p>${e.data}</p>`);
+            console.log("messsage received!!!" + e.data)
+        }
+        sendChannel.onopen = e => {
+            sendType = 'sender';
+            openChat('sender');
+            console.log(" open from offer side......!!!!");
+        }
         sendChannel.onclose = e => console.log("closed!!!!!!");
 
         var offer = await connection.createOffer();
@@ -468,6 +492,36 @@ var Demo = (function () {
         //Send offer to Server
         socket.emit('new_message1', JSON.stringify({ 'offer': connection.localDescription }));
     }
+
+    function openChat(type) {
+
+        if (type === 'sender') {
+            $('#frmChat').toggle();
+            /** messege block */
+            $('#frmChat').on("submit", function (event) {
+                event.preventDefault();
+                $('#chat-user').attr("type", "hidden");
+                chat_user = $('#chat-user').val();
+                chat_message = $('#chat-message').val();
+                sendChannel.send(chat_user + ' : ' + chat_message);
+                $('#chat-box').append(`<p>${chat_user}   :   ${chat_message}</p>`);
+            });
+
+        } else if (type === 'recever') {
+            $('#frmChat').toggle();
+            /** messege block */
+            $('#frmChat').on("submit", function (event) {
+                event.preventDefault();
+                $('#chat-user').attr("type", "hidden");
+                chat_user = $('#chat-user').val();
+                chat_message = $('#chat-message').val();
+                receiveChannel.send(chat_user + ' : ' + chat_message);
+                $('#chat-box').append(`<p>${chat_user}   :   ${chat_message}</p>`);
+            });
+        }
+        console.log('Type is : ' + type);
+    }
+
 
     return {
         init: async function () {
